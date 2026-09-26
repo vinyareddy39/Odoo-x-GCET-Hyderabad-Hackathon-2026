@@ -230,4 +230,105 @@ router.get('/shrinkage', async (req, res) => {
   }
 });
 
+// @desc    Get comprehensive Reports & Analytics summary data
+// @route   GET /api/analytics/reports/summary
+router.get('/reports/summary', async (req, res) => {
+  try {
+    const products = await Product.find({ isActive: true });
+    const inventories = await Inventory.find().populate('warehouse', 'name code');
+    const warehouses = await Warehouse.find({ isActive: true });
+
+    // 1. Inventory Value by Warehouse
+    const warehouseValues = {};
+    warehouses.forEach((w) => {
+      warehouseValues[w._id.toString()] = {
+        name: w.name,
+        code: w.code,
+        totalValue: 0,
+        totalUnits: 0,
+      };
+    });
+
+    let grandTotalValue = 0;
+    let grandTotalUnits = 0;
+
+    // 2. Inventory Value by Category
+    const categoryValues = {};
+
+    inventories.forEach((inv) => {
+      const prod = products.find((p) => p._id.toString() === inv.product.toString());
+      if (prod) {
+        const itemVal = inv.quantityOnHand * (prod.costPrice || 0);
+        grandTotalValue += itemVal;
+        grandTotalUnits += inv.quantityOnHand;
+
+        // Warehouse bucket
+        const whId = inv.warehouse?._id?.toString() || inv.warehouse?.toString();
+        if (warehouseValues[whId]) {
+          warehouseValues[whId].totalValue += itemVal;
+          warehouseValues[whId].totalUnits += inv.quantityOnHand;
+        }
+
+        // Category bucket
+        const cat = prod.category || 'General';
+        if (!categoryValues[cat]) {
+          categoryValues[cat] = { category: cat, totalValue: 0, totalUnits: 0, skuCount: 0 };
+        }
+        categoryValues[cat].totalValue += itemVal;
+        categoryValues[cat].totalUnits += inv.quantityOnHand;
+      }
+    });
+
+    // Count SKUs per category
+    products.forEach((p) => {
+      const cat = p.category || 'General';
+      if (categoryValues[cat]) categoryValues[cat].skuCount++;
+    });
+
+    // 3. Top-Moving Products (by outbound delivery volume)
+    const topMoversAgg = await StockLedger.aggregate([
+      { $match: { operationType: 'delivery' } },
+      {
+        $group: {
+          _id: '$product',
+          productName: { $first: '$productName' },
+          productSku: { $first: '$productSku' },
+          totalDispatched: { $sum: { $abs: '$quantityChange' } },
+          dispatchCount: { $sum: 1 },
+        },
+      },
+      { $sort: { totalDispatched: -1 } },
+      { $limit: 5 },
+    ]);
+
+    // 4. Movement Breakdown by Type
+    const movementCounts = await StockLedger.aggregate([
+      {
+        $group: {
+          _id: '$operationType',
+          count: { $sum: 1 },
+          totalVolume: { $sum: { $abs: '$quantityChange' } },
+        },
+      },
+    ]);
+
+    const moveMap = { receipt: 0, delivery: 0, transfer: 0, adjustment: 0 };
+    movementCounts.forEach((m) => {
+      if (moveMap[m._id] !== undefined) moveMap[m._id] = m.count;
+    });
+
+    res.json({
+      success: true,
+      grandTotalValue: parseFloat(grandTotalValue.toFixed(2)),
+      grandTotalUnits,
+      warehouses: Object.values(warehouseValues),
+      categories: Object.values(categoryValues),
+      topMovers: topMoversAgg,
+      movementBreakdown: moveMap,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 export default router;

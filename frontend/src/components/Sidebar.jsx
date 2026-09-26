@@ -13,6 +13,8 @@ import {
   User,
   LogOut,
   ShieldCheck,
+  Zap,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -78,6 +80,17 @@ export const Sidebar = () => {
             <NavLink to="/products" className={navItemClass}>
               <Package className="w-4 h-4" />
               <span>Products</span>
+            </NavLink>
+            <NavLink to="/reorder" className={navItemClass}>
+              <Zap className="w-4 h-4 text-amber-500" />
+              <div className="flex items-center justify-between flex-1">
+                <span>Smart Reorder</span>
+                <span className="text-[10px] bg-amber-100 text-amber-800 font-semibold px-1.5 py-0.5 rounded-full">AI</span>
+              </div>
+            </NavLink>
+            <NavLink to="/reports" className={navItemClass}>
+              <BarChart3 className="w-4 h-4 text-indigo-500" />
+              <span>Reports & Analytics</span>
             </NavLink>
           </div>
         </div>

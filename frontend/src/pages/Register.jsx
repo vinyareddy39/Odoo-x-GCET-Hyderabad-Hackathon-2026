@@ -131,7 +131,6 @@ export const Register = () => {
                 onChange={(e) => setRole(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
               >
-                <option value="admin">Administrator (Full Access)</option>
                 <option value="manager">Warehouse Manager</option>
                 <option value="operator">Inventory Operator</option>
               </select>

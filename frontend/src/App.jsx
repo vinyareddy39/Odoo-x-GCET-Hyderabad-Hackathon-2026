@@ -16,6 +16,8 @@ import { Adjustments } from './pages/Adjustments';
 import { MoveHistory } from './pages/MoveHistory';
 import { Warehouses } from './pages/Warehouses';
 import { Profile } from './pages/Profile';
+import { Reports } from './pages/Reports';
+import { Reorder } from './pages/Reorder';
 import { CopilotDrawer } from './components/CopilotDrawer';
 
 const ProtectedLayout = () => {
@@ -57,6 +59,8 @@ export const App = () => {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/products" element={<Products />} />
+        <Route path="/reorder" element={<Reorder />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/operations/receipts" element={<Receipts />} />
         <Route path="/operations/deliveries" element={<Deliveries />} />
         <Route path="/operations/transfers" element={<Transfers />} />

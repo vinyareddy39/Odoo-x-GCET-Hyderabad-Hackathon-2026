@@ -7,7 +7,7 @@ import {
   updateProduct,
   deleteProduct,
 } from '../controllers/productController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -22,6 +22,6 @@ router.route('/')
 router.route('/:id')
   .get(getProductById)
   .put(updateProduct)
-  .delete(deleteProduct);
+  .delete(restrictTo('admin', 'manager'), deleteProduct);
 
 export default router;

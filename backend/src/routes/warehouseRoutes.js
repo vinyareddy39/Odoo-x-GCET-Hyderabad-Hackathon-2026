@@ -5,7 +5,7 @@ import {
   updateWarehouse,
   deleteWarehouse,
 } from '../controllers/warehouseController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, restrictTo } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -17,6 +17,6 @@ router.route('/')
 
 router.route('/:id')
   .put(updateWarehouse)
-  .delete(deleteWarehouse);
+  .delete(restrictTo('admin'), deleteWarehouse);
 
 export default router;

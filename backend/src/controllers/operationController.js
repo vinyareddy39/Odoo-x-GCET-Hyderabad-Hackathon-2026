@@ -253,6 +253,22 @@ export const validateOperation = async (req, res) => {
         return res.status(400).json({ message: 'Source warehouse is required for validating Delivery orders.' });
       }
 
+      // Pre-flight availability check across ALL line items:
+      // Standalone MongoDB instances (common in hackathons/dev) do not support replica-set multi-document transactions.
+      // This pre-flight validation guarantees atomicity: if item 3 of 5 is short, items 1-2 are never touched.
+      for (const item of items) {
+        const checkInv = await Inventory.findOne({
+          product: item.product._id,
+          warehouse: sourceWarehouse,
+        });
+        const currentAvailable = checkInv ? checkInv.quantityOnHand : 0;
+        if (currentAvailable < item.demandedQuantity) {
+          return res.status(400).json({
+            message: `Pre-flight validation failed: Insufficient stock for "${item.productName || item.product.name}". Available: ${currentAvailable}, Demanded: ${item.demandedQuantity}. Transaction aborted with zero writes.`,
+          });
+        }
+      }
+
       // Execute atomic conditional decrement directly in MongoDB
       for (const item of items) {
         const qty = item.demandedQuantity;
@@ -312,6 +328,20 @@ export const validateOperation = async (req, res) => {
         return res.status(400).json({
           message: 'Source and destination warehouses cannot be the same.',
         });
+      }
+
+      // Pre-flight availability check across all transfer items before writing:
+      for (const item of items) {
+        const checkSource = await Inventory.findOne({
+          product: item.product._id,
+          warehouse: sourceWarehouse,
+        });
+        const currentAvailable = checkSource ? checkSource.quantityOnHand : 0;
+        if (currentAvailable < item.demandedQuantity) {
+          return res.status(400).json({
+            message: `Pre-flight validation failed: Insufficient stock in source facility for "${item.productName || item.product.name}". Available: ${currentAvailable}, Demanded: ${item.demandedQuantity}. Transfer aborted with zero writes.`,
+          });
+        }
       }
 
       // Execute atomic transfer

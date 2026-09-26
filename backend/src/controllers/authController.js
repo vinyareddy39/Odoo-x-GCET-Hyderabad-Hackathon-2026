@@ -1,10 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 import { sendOtpEmail } from '../utils/mailer.js';
+import { JWT_SECRET, JWT_EXPIRES_IN } from '../config/jwt.js';
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'stocksense_super_secret_jwt_key_2026', {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  return jwt.sign({ id }, JWT_SECRET, {
+    expiresIn: JWT_EXPIRES_IN,
   });
 };
 
@@ -23,11 +24,16 @@ export const register = async (req, res) => {
       return res.status(400).json({ message: 'A user with this email address already exists.' });
     }
 
+    // Security: Prevent self-assigned administrator privilege escalation
+    // Only 'manager' or 'operator' can be chosen at public signup; admins are created by existing admins or seed.
+    const allowedSignupRoles = ['manager', 'operator'];
+    const assignedRole = allowedSignupRoles.includes(role) ? role : 'operator';
+
     const user = await User.create({
       name,
       email: email.toLowerCase(),
       password,
-      role: role || 'admin',
+      role: assignedRole,
     });
 
     const token = generateToken(user._id);
@@ -200,11 +206,12 @@ export const updateProfile = async (req, res) => {
     if (req.body.email) user.email = req.body.email.toLowerCase();
 
     if (req.body.newPassword) {
-      if (req.body.currentPassword) {
-        const isMatch = await user.matchPassword(req.body.currentPassword);
-        if (!isMatch) {
-          return res.status(400).json({ message: 'Current password is incorrect.' });
-        }
+      if (!req.body.currentPassword) {
+        return res.status(400).json({ message: 'Current password is required to change your password.' });
+      }
+      const isMatch = await user.matchPassword(req.body.currentPassword);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Current password is incorrect.' });
       }
       user.password = req.body.newPassword;
     }
