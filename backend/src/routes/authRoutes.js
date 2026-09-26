@@ -13,6 +13,7 @@ import { protect } from '../middleware/auth.js';
 const router = express.Router();
 
 router.post('/register', register);
+router.post('/signup', register);
 router.post('/login', login);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-otp', verifyOtp);

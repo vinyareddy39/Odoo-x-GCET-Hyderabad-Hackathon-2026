@@ -209,7 +209,7 @@ export const validateOperation = async (req, res) => {
 
     const { type, items, sourceWarehouse, destinationWarehouse } = operation;
 
-    // 1. RECEIPT: Increase stock in destinationWarehouse
+    // 1. RECEIPT: Atomic increase of stock in destinationWarehouse
     if (type === 'receipt') {
       if (!destinationWarehouse) {
         return res.status(400).json({ message: 'Destination warehouse is required for validating Receipts.' });
@@ -217,21 +217,15 @@ export const validateOperation = async (req, res) => {
 
       for (const item of items) {
         const qty = item.demandedQuantity;
-        let inv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: destinationWarehouse,
-        });
-
-        if (!inv) {
-          inv = await Inventory.create({
-            product: item.product._id,
-            warehouse: destinationWarehouse,
-            quantityOnHand: qty,
-          });
-        } else {
-          inv.quantityOnHand += qty;
-          await inv.save();
-        }
+        // Atomic increment with upsert to prevent lost updates or concurrency race conditions
+        const inv = await Inventory.findOneAndUpdate(
+          { product: item.product._id, warehouse: destinationWarehouse },
+          {
+            $inc: { quantityOnHand: qty },
+            $setOnInsert: { locationZone: 'Main Storage' },
+          },
+          { new: true, upsert: true }
+        );
 
         item.doneQuantity = qty;
 
@@ -253,36 +247,39 @@ export const validateOperation = async (req, res) => {
       }
     }
 
-    // 2. DELIVERY: Decrease stock from sourceWarehouse
+    // 2. DELIVERY: Atomic decrease of stock from sourceWarehouse
     else if (type === 'delivery') {
       if (!sourceWarehouse) {
         return res.status(400).json({ message: 'Source warehouse is required for validating Delivery orders.' });
       }
 
-      // Check stock availability first
-      for (const item of items) {
-        const inv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: sourceWarehouse,
-        });
-        const currentStock = inv ? inv.quantityOnHand : 0;
-        if (currentStock < item.demandedQuantity) {
-          return res.status(400).json({
-            message: `Insufficient stock for "${item.productName || item.product.name}". Available: ${currentStock}, Required: ${item.demandedQuantity}`,
-          });
-        }
-      }
-
-      // Deduct stock and write to ledger
+      // Execute atomic conditional decrement directly in MongoDB
       for (const item of items) {
         const qty = item.demandedQuantity;
-        const inv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: sourceWarehouse,
-        });
 
-        inv.quantityOnHand -= qty;
-        await inv.save();
+        // Atomically decrement stock only if available stock is >= demanded quantity
+        const inv = await Inventory.findOneAndUpdate(
+          {
+            product: item.product._id,
+            warehouse: sourceWarehouse,
+            quantityOnHand: { $gte: qty },
+          },
+          {
+            $inc: { quantityOnHand: -qty },
+          },
+          { new: true }
+        );
+
+        if (!inv) {
+          const currentInv = await Inventory.findOne({
+            product: item.product._id,
+            warehouse: sourceWarehouse,
+          });
+          const available = currentInv ? currentInv.quantityOnHand : 0;
+          return res.status(400).json({
+            message: `Insufficient stock in source warehouse for "${item.productName || item.product.name}". Available: ${available}, Required: ${qty}`,
+          });
+        }
 
         item.doneQuantity = qty;
 
@@ -303,7 +300,7 @@ export const validateOperation = async (req, res) => {
       }
     }
 
-    // 3. INTERNAL TRANSFER: Move stock from source to destination
+    // 3. INTERNAL TRANSFER: Atomic relocation between warehouses
     else if (type === 'transfer') {
       if (!sourceWarehouse || !destinationWarehouse) {
         return res.status(400).json({
@@ -317,47 +314,43 @@ export const validateOperation = async (req, res) => {
         });
       }
 
-      // Check source stock
-      for (const item of items) {
-        const sourceInv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: sourceWarehouse,
-        });
-        const currentStock = sourceInv ? sourceInv.quantityOnHand : 0;
-        if (currentStock < item.demandedQuantity) {
-          return res.status(400).json({
-            message: `Insufficient stock in source location for "${item.productName || item.product.name}". Available: ${currentStock}, Required: ${item.demandedQuantity}`,
-          });
-        }
-      }
-
-      // Execute transfer
+      // Execute atomic transfer
       for (const item of items) {
         const qty = item.demandedQuantity;
 
-        // Decrease from source
-        const sourceInv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: sourceWarehouse,
-        });
-        sourceInv.quantityOnHand -= qty;
-        await sourceInv.save();
-
-        // Increase in destination
-        let destInv = await Inventory.findOne({
-          product: item.product._id,
-          warehouse: destinationWarehouse,
-        });
-        if (!destInv) {
-          destInv = await Inventory.create({
+        // Atomically decrement from source warehouse with stock guard
+        const sourceInv = await Inventory.findOneAndUpdate(
+          {
             product: item.product._id,
-            warehouse: destinationWarehouse,
-            quantityOnHand: qty,
+            warehouse: sourceWarehouse,
+            quantityOnHand: { $gte: qty },
+          },
+          {
+            $inc: { quantityOnHand: -qty },
+          },
+          { new: true }
+        );
+
+        if (!sourceInv) {
+          const currentSource = await Inventory.findOne({
+            product: item.product._id,
+            warehouse: sourceWarehouse,
           });
-        } else {
-          destInv.quantityOnHand += qty;
-          await destInv.save();
+          const available = currentSource ? currentSource.quantityOnHand : 0;
+          return res.status(400).json({
+            message: `Insufficient stock in source warehouse for "${item.productName || item.product.name}". Available: ${available}, Required: ${qty}`,
+          });
         }
+
+        // Atomically increment in destination warehouse
+        const destInv = await Inventory.findOneAndUpdate(
+          { product: item.product._id, warehouse: destinationWarehouse },
+          {
+            $inc: { quantityOnHand: qty },
+            $setOnInsert: { locationZone: 'Main Storage' },
+          },
+          { new: true, upsert: true }
+        );
 
         item.doneQuantity = qty;
 
@@ -388,24 +381,24 @@ export const validateOperation = async (req, res) => {
 
       for (const item of items) {
         const physical = Number(item.physicalCount ?? item.demandedQuantity ?? 0);
-        let inv = await Inventory.findOne({
+        
+        // Fetch current system stock for calculating delta audit log
+        const currentInv = await Inventory.findOne({
           product: item.product._id,
           warehouse: sourceWarehouse,
         });
-
-        const systemBefore = inv ? inv.quantityOnHand : 0;
+        const systemBefore = currentInv ? currentInv.quantityOnHand : 0;
         const delta = physical - systemBefore;
 
-        if (!inv) {
-          inv = await Inventory.create({
-            product: item.product._id,
-            warehouse: sourceWarehouse,
-            quantityOnHand: physical,
-          });
-        } else {
-          inv.quantityOnHand = physical;
-          await inv.save();
-        }
+        // Atomically update inventory to exact physical count
+        await Inventory.findOneAndUpdate(
+          { product: item.product._id, warehouse: sourceWarehouse },
+          {
+            $set: { quantityOnHand: physical },
+            $setOnInsert: { locationZone: 'Main Storage' },
+          },
+          { new: true, upsert: true }
+        );
 
         item.systemCount = systemBefore;
         item.physicalCount = physical;
