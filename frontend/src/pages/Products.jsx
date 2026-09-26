@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import api from '../api/client';
 import { Navbar } from '../components/Navbar';
 import { Modal } from '../components/Modal';
+import { QrCodeModal } from '../components/QrCodeModal';
 import { useNotification } from '../context/NotificationContext';
 import {
   Package,
@@ -18,6 +19,7 @@ import {
   CheckCircle2,
   XCircle,
   ExternalLink,
+  QrCode,
 } from 'lucide-react';
 
 export const Products = () => {
@@ -38,6 +40,8 @@ export const Products = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const [selectedQrProduct, setSelectedQrProduct] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -365,6 +369,16 @@ export const Products = () => {
                       <td className="px-6 py-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1">
                           <button
+                            onClick={() => {
+                              setSelectedQrProduct(prod);
+                              setIsQrOpen(true);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Print / View Barcode & QR Code Tag"
+                          >
+                            <QrCode className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => handleOpenEditModal(prod)}
                             className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                             title="Edit Product"
@@ -575,6 +589,12 @@ export const Products = () => {
           </div>
         </form>
       </Modal>
+
+      <QrCodeModal
+        product={selectedQrProduct}
+        isOpen={isQrOpen}
+        onClose={() => setIsQrOpen(false)}
+      />
     </div>
   );
 };

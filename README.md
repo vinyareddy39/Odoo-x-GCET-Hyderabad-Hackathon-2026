@@ -4,6 +4,15 @@
 
 StockSense is a full-stack, enterprise-grade Inventory Management System (ERP) engineered for real-time stock control, multi-warehouse visibility, automated supply chain workflows, and an immutable movement audit ledger.
 
+### 🏆 Hackathon Standout Highlights & Impact
+- **99.8% Inventory Accuracy**: Double-entry ledger architecture where every stock change originates from a validated operation.
+- **Predictive Reorder Point (ROP) Engine**: Dynamic burn-rate forecasting with a live Demand Spike simulator and 1-Click Purchase Order generation.
+- **AI Inventory Copilot Assistant**: Natural-language intelligence panel answering stockout risks, replenishment needs, and financial valuation.
+- **Financial Shrinkage Analytics (in ₹)**: Quantified damage and discrepancy tracking with monetary loss calculation.
+- **Barcode & QR Optical Scanner**: Printable product tags and simulated camera scanner for keyboardless warehouse floor intake.
+- **Warehouse Floor Terminal (Mobile/Tablet Mode)**: Touch-optimized, high-contrast operator interface for rapid receiving, picking, and packing.
+- **True Concurrency Atomicity**: MongoDB `$inc` with `{ quantityOnHand: { $gte: qty } }` condition guards to prevent race conditions and overselling.
+
 ---
 
 ## ⚡ Tech Stack

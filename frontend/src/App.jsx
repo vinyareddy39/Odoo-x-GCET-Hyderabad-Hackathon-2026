@@ -16,6 +16,7 @@ import { Adjustments } from './pages/Adjustments';
 import { MoveHistory } from './pages/MoveHistory';
 import { Warehouses } from './pages/Warehouses';
 import { Profile } from './pages/Profile';
+import { CopilotDrawer } from './components/CopilotDrawer';
 
 const ProtectedLayout = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -38,6 +39,7 @@ const ProtectedLayout = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         <Outlet />
       </div>
+      <CopilotDrawer />
     </div>
   );
 };

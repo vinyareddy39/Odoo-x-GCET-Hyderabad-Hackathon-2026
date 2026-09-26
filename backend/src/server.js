@@ -10,6 +10,8 @@ import productRoutes from './routes/productRoutes.js';
 import operationRoutes from './routes/operationRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import moveHistoryRoutes from './routes/moveHistoryRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
+import copilotRoutes from './routes/copilotRoutes.js';
 
 dotenv.config();
 
@@ -41,6 +43,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/operations', operationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/move-history', moveHistoryRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/copilot', copilotRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {
